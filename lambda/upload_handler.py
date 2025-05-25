@@ -1,59 +1,46 @@
-import boto3
+import json
 import base64
-import uuid
-import os
+from urllib.request import Request, urlopen
 from requests_toolbelt.multipart import decoder
-from urllib.parse import parse_qs
-
-s3 = boto3.client("s3")
-BUCKET_NAME = "huggingface-image-upload"  
+import json
+from urllib.request import Request, urlopen
 
 def parse_form_data(event):
-    content_type = event['headers'].get('content-type') or event['headers'].get('Content-Type')
-    if not content_type:
-        raise Exception("Missing content-type header")
+    content_type = event["headers"].get("Content-Type") or event["headers"].get("content-type")
+    body = base64.b64decode(event["body"]) if event.get("isBase64Encoded", False) else event["body"]
 
-    body = base64.b64decode(event['body']) if event.get('isBase64Encoded', False) else event['body']
-    multipart_data = decoder.MultipartDecoder(body, content_type)
+    form = decoder.MultipartDecoder(body, content_type)
 
-    file_content = None
-    filename = None
-    model_name = None
+    image_bytes = None
+    model_id = None
 
-    for part in multipart_data.parts:
-        disposition = part.headers.get(b'Content-Disposition', b'').decode()
-        if 'name="image"' in disposition:
-            file_content = part.content
-            if 'filename=' in disposition:
-                filename = disposition.split('filename=')[1].strip('"')
-        elif 'name="model"' in disposition:
-            model_name = part.text
+    for part in form.parts:
+        cd = part.headers.get(b"Content-Disposition", b"").decode()
+        if 'name="image"' in cd:
+            image_bytes = part.content
+        elif 'name="model"' in cd:
+            model_id = part.content.decode()
 
-    if not all([file_content, filename, model_name]):
-        raise Exception("Missing image, filename, or model")
+    return image_bytes, model_id
 
-    return file_content, filename, model_name
 
-def lambda_handler(event, context):
-    try:
-        file_content, filename, model_name = parse_form_data(event)
+def query_huggingface(image_bytes, model_id, token):
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/octet-stream"
+    }
 
-        key = f"uploads/{uuid.uuid4()}_{model_name.replace('/', '-')}_{filename}"
+    req = Request(
+        url=f"https://api-inference.huggingface.co/models/{model_id}",
+        data=image_bytes,
+        headers=headers
+    )
 
-        s3.put_object(
-            Bucket=BUCKET_NAME,
-            Key=key,
-            Body=file_content,
-            Metadata={"model": model_name}
-        )
-
-        return {
-            "statusCode": 200,
-            "body": f"Image uploaded successfully to {key}"
-        }
-
-    except Exception as e:
-        return {
-            "statusCode": 400,
-            "body": str(e)
-        }
+    with urlopen(req) as res:
+        raw = res.read().decode()
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as e:
+            print("JSON decode failed:", e)
+            print("Raw response from Hugging Face:", raw)
+            return {"raw_output": base64.b64encode(raw.encode()).decode()}
