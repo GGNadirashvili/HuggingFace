@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hugging Face Image Upload</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    form { max-width: 400px; margin: auto; padding: 20px; border: 1px solid #ccc; border-radius: 10px; }
+    input, select, button { width: 100%; padding: 10px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h2>Upload Image to Hugging Face</h2>
+  <form id="uploadForm">
+    <label for="image">Select Image:</label>
+    <input type="file" id="image" name="image" accept="image/*" required />
+
+    <label for="model">Choose Hugging Face Model:</label>
+    <select id="model" name="model" required>
+       <option value="facebook/detr-resnet-50">facebook/detr-resnet-50</option>
+       <option value="google/vit-base-patch16-224">google/vit-base-patch16-224</option>
+    </select>
+
+    <button type="submit">Submit</button>
+  </form>
+
+  <script src="./js/upload.js"></script>
+</body>
+</html>
